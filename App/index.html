@@ -1158,7 +1158,7 @@
     const live = {temp_air:26, hum_air:65, hum_soil:48, ph_soil:6.4, lat:null, long:null, ts:null};
     const seedFields = [
       {
-        name:'Kebun A',
+        name:'Farm A',
         crop:'cabai',
         target:80,
         layoutMode:'edge',
@@ -1174,7 +1174,7 @@
       tab:'dashboard',
       fields: JSON.parse(JSON.stringify(seedFields)),
       activeField:0,
-      fieldName:'Kebun A',
+      fieldName:'Farm A',
       crop:'cabai',
       target:80,
       layoutMode:'edge',
@@ -1460,7 +1460,7 @@
     function bedActionHTML(b, p = calcBed(b)) {
       const info = polycatLayoutInfo(b);
       const step3 = info
-        ? `<div class="plain-item"><i>3</i><div><strong>Tanam ${info.refugiaActive?info.refugiaName:''}${info.refugiaActive&&info.herbsActive?' + ':''}${info.herbsActive?info.herbsName:''} sebagai companion</strong><span>${info.refugiaActive?info.refugiaName+' di kedua tepi panjang (45cm). ':''}${info.herbsActive?info.herbsName+' di kedua ujung pendek (50cm).':''}</span></div></div>`
+        ? `<div class="plain-item"><i>3</i><div><strong>Plant ${info.refugiaActive?info.refugiaName:''}${info.refugiaActive&&info.herbsActive?' + ':''}${info.herbsActive?info.herbsName:''} as companions</strong><span>${info.refugiaActive?info.refugiaName+' along both long edges (45cm). ':''}${info.herbsActive?info.herbsName+' at both short ends (50cm).':''}</span></div></div>`
         : `<div class="plain-item"><i>3</i><div><strong>Add ${companionDb[selectedCompanion(b)].common.toLowerCase()} as companion</strong><span>${placementLabel(selectedPlacement(b))}. ${companionDb[selectedCompanion(b)].note}</span></div></div>`;
       return `<div class="plain-list">
         <div class="plain-item"><i>1</i><div><strong>Plant ${p.count} ${crop().common.toLowerCase()} plants</strong><span>Use ${p.actualX} cm between plants and ${p.actualY} cm between rows.</span></div></div>
@@ -2343,7 +2343,7 @@
 
     function selectedPlantCancelWarning(catKey, plantId) {
       if (catKey === 'refugia' && plantId === 'marigold_r')
-        return 'Marigold attracts parasitic wasps that directly parasitize caterpillars, stopping them before they damage the crop. Tahan hujan lebat dan tetap berbunga di kelembaban tinggi — artinya beneficial insects tetap datang meskipun musim hujan.';
+        return 'Marigold attracts parasitic wasps that directly parasitize caterpillars, stopping them before they damage the crop. Resilient in heavy rain and continues flowering at high humidity — beneficial insects keep coming even through the wet season.';
       if (catKey === 'herbs' && plantId === 'sereh_h')
         return 'Lemongrass — its citral compound disrupts moth navigation, preventing them from laying eggs on the plants in the first place.';
       return catSkipWarning(catKey, st.survey);
@@ -2486,7 +2486,7 @@
         {id:'bayam_ic',    name:'Amaranth',      sci:'Amaranthus spp.',       visual:'🥬', ph:[6.0,7.0], temp:[25,35], note:'Heat tolerant; very fast growing; high N demand. Spacing 15×15 cm.'},
       ],
       refugia: [
-        {id:'marigold_r',  name:'Marigold',      sci:'Tagetes erecta',        visual:'🌼', ph:[6.0,7.5], temp:[18,30], note:'Attracts parasitoid wasps that parasitize caterpillars. Tahan hujan lebat — tetap berbunga di kelembaban tinggi, beneficial insects tetap datang meski musim hujan.'},
+        {id:'marigold_r',  name:'Marigold',      sci:'Tagetes erecta',        visual:'🌼', ph:[6.0,7.5], temp:[18,30], note:'Attracts parasitoid wasps that parasitize caterpillars. Keeps flowering in heavy rain and high humidity — beneficial insects keep coming through the wet season.'},
         {id:'zinnia_r',    name:'Zinnia',         sci:'Zinnia elegans',        visual:'🌸', ph:[5.5,7.5], temp:[20,32], note:'Controls armyworm, pod borer. Invites syrphid fly, honey bee.'},
         {id:'kenikir_r',   name:'Cosmos',         sci:'Cosmos caudatus',       visual:'🌺', ph:[5.5,7.0], temp:[22,32], note:'Controls brown planthopper, aphid. Invites Oxyopes spider predator.'},
         {id:'sunflower_r', name:'Sunflower',      sci:'Helianthus annuus',     visual:'🌻', ph:[6.0,7.5], temp:[20,32], note:'Controls sucking pest, cutworm. Invites honey bee, predator birds.'},
@@ -2504,7 +2504,7 @@
         {id:'pueraria_lcc',   name:'Pueraria',           sci:'Pueraria javanica',       visual:'🌿', ph:[5.5,7.0], temp:[22,30], nFix:'100–150 kg/ha', note:'Good soil coverage; seed tip scarification required. Spacing 50×50 cm.'},
       ],
       herbs: [
-        {id:'sereh_h',  name:'Lemongrass', sci:'Cymbopogon citratus',  visual:'🌾', ph:[5.5,7.5], temp:[24,32], compound:'Citral, Geraniol',  note:'Senyawa citral mengganggu navigasi ngengat — mencegah peletakan telur sebelum terjadi kerusakan tanaman. Efektif sepanjang musim.'},
+        {id:'sereh_h',  name:'Lemongrass', sci:'Cymbopogon citratus',  visual:'🌾', ph:[5.5,7.5], temp:[24,32], compound:'Citral, Geraniol',  note:'Citral compound disrupts moth navigation — prevents egg-laying before crop damage occurs. Effective throughout the season.'},
         {id:'kemangi_h',name:'Basil',      sci:'Ocimum basilicum',     visual:'🌿', ph:[6.0,7.0], temp:[22,30], compound:'Eugenol, Linalool', note:'Controls whitefly, thrips, mosquito. Classic Solanaceae companion.'},
         {id:'jahe_h',   name:'Ginger',     sci:'Zingiber officinale',  visual:'🫚', ph:[5.5,6.5], temp:[24,30], compound:'Gingerol',          note:'Controls cutworm, soil insect, termite. Spacing 30×40 cm.'},
         {id:'kunyit_h', name:'Turmeric',   sci:'Curcuma longa',        visual:'🟡', ph:[5.5,7.5], temp:[24,30], compound:'Curcumin',          note:'Controls ant, storage pest, soil fungi. Spacing 30×40 cm.'},
@@ -2626,7 +2626,7 @@
         <div class="top">
           <div class="step">Step 5 of 5</div>
           <h1>Polyculture design</h1>
-          <p class="sub">Untuk kondisi Anda, <strong>${priorityCats.map(k=>POLYCAT_DEFS.find(d=>d.key===k)?.label).join(' + ')}</strong> paling direkomendasikan. Ketuk kategori untuk membuka dan memilih tanaman.</p>
+          <p class="sub">For your conditions, <strong>${priorityCats.map(k=>POLYCAT_DEFS.find(d=>d.key===k)?.label).join(' + ')}</strong> is most recommended. Tap a category to expand and choose your plants.</p>
         </div>
         <div class="section stack">
           ${st.beds.map(b => {
@@ -2665,9 +2665,9 @@
                   const rgb = hexToRgbStr(cat.color);
                   const cancelWarn = selectedPlantCancelWarning(cat.key, selId);
                   const headerSubtitle = isCancelled
-                    ? `<span style="font-size:10px;color:#c04030;font-weight:700">⚠ Dilewati</span>`
+                    ? `<span style="font-size:10px;color:#c04030;font-weight:700">⚠ Skipped</span>`
                     : isOpen && selId
-                      ? `<span style="font-size:10px;color:var(--leaf-2);font-weight:700">${selPlant.visual} ${selPlant.name} dipilih</span>`
+                      ? `<span style="font-size:10px;color:var(--leaf-2);font-weight:700">${selPlant.visual} ${selPlant.name} selected</span>`
                       : `<span style="font-size:10px;color:var(--muted);font-weight:500">${cat.desc}</span>`;
                   return `<div class="cat-accordion ${isOpen||isCancelled?'open':''} ${isPriority&&!isCancelled?'is-priority':''} ${isCancelled?'is-cancelled':''}">
                     <button class="cat-acc-header" onclick="togglePolycatOpen('${b.id}','${cat.key}')">
@@ -2678,10 +2678,10 @@
                         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                           <strong style="font-size:13px;color:var(--ink)">${cat.label}</strong>
                           ${isCancelled
-                            ? `<span class="cat-not-needed" style="border-color:var(--red-line);color:#c04030">Dilewati</span>`
+                            ? `<span class="cat-not-needed" style="border-color:var(--red-line);color:#c04030">Skipped</span>`
                             : isPriority
-                              ? `<span class="cat-priority-badge">★ Direkomendasikan</span>`
-                              : `<span class="cat-not-needed">Tidak diperlukan</span>`}
+                              ? `<span class="cat-priority-badge">★ Recommended</span>`
+                              : `<span class="cat-not-needed">Not needed</span>`}
                         </div>
                         ${headerSubtitle}
                       </div>
@@ -2691,7 +2691,7 @@
                     ${(isOpen || isCancelled) ? `<div class="cat-acc-body">
                       ${isCancelled ? `
                         <div class="cat-cancel-warn">⚠ ${cancelWarn}</div>
-                        <button class="btn-restore-cat" onclick="event.stopPropagation();togglePolycatCancel('${b.id}','${cat.key}')">↩ Pulihkan pilihan ini</button>
+                        <button class="btn-restore-cat" onclick="event.stopPropagation();togglePolycatCancel('${b.id}','${cat.key}')">↩ Restore this category</button>
                       ` : `
                         ${!isPriority ? `<div style="padding:10px 14px 4px;font-size:11px;color:var(--muted);background:var(--wash);line-height:1.4">
                           <strong style="color:var(--ink)">Opsional.</strong> ${catSkipWarning(cat.key, st.survey)}
@@ -2715,7 +2715,7 @@
                         <div style="padding:8px 12px 10px;border-top:1px solid var(--line);background:var(--wash);font-size:11px;color:var(--muted);line-height:1.4">
                           <strong style="color:var(--leaf-2)">${selPlant.name}</strong> — ${selPlant.note||cat.desc}
                         </div>
-                        <button class="btn-cancel-cat" onclick="event.stopPropagation();togglePolycatCancel('${b.id}','${cat.key}')">Lewati kategori ini ✕</button>
+                        <button class="btn-cancel-cat" onclick="event.stopPropagation();togglePolycatCancel('${b.id}','${cat.key}')">Skip this category ✕</button>
                       `}
                     </div>` : ''}
                   </div>`;
