@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PolyFarm</title>
+  <title>PoliFarm</title>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
     :root {
@@ -1833,29 +1833,45 @@
     function S_login() {
       return `<section class="login">
         <div class="login-logo-wrap">
-          <svg viewBox="0 0 90 90" xmlns="http://www.w3.org/2000/svg" width="78" height="78">
+          <svg viewBox="0 0 90 90" xmlns="http://www.w3.org/2000/svg" width="86" height="86">
             <defs>
-              <linearGradient id="pG" x1="15%" y1="8%" x2="85%" y2="92%">
-                <stop offset="0%" stop-color="#38c8d8"/>
-                <stop offset="48%" stop-color="#2e90ac"/>
-                <stop offset="100%" stop-color="#235a7a"/>
+              <linearGradient id="pG" x1="85%" y1="5%" x2="15%" y2="95%">
+                <stop offset="0%" stop-color="#3ecad8"/>
+                <stop offset="50%" stop-color="#2a7ca0"/>
+                <stop offset="100%" stop-color="#1c4a70"/>
               </linearGradient>
-              <linearGradient id="leafG" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="rgba(255,255,255,0.96)"/>
-                <stop offset="100%" stop-color="rgba(255,255,255,0.62)"/>
+              <linearGradient id="hiG" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#5cd8e8"/>
+                <stop offset="100%" stop-color="#2a9cba"/>
               </linearGradient>
-              <clipPath id="cClip"><circle cx="45" cy="45" r="37"/></clipPath>
+              <linearGradient id="lfG" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="rgba(255,255,255,0.97)"/>
+                <stop offset="100%" stop-color="rgba(255,255,255,0.68)"/>
+              </linearGradient>
+              <clipPath id="cc"><circle cx="45" cy="45" r="35"/></clipPath>
             </defs>
-            <circle cx="45" cy="45" r="43" fill="rgba(255,255,255,0.12)"/>
-            <circle cx="45" cy="45" r="42" fill="none" stroke="#a6e2ec" stroke-width="5.5"/>
-            <g clip-path="url(#cClip)">
-              <rect x="14" y="11" width="14" height="63" rx="7" fill="url(#pG)"/>
-              <path d="M28,11 L47,11 Q70,11 70,29 Q70,47 47,47 L28,47 Z" fill="url(#pG)"/>
-              <path d="M32,18 C44,15 62,20 66,29 C58,33 46,37 34,34 C27,32 27,23 32,18 Z" fill="url(#leafG)"/>
-              <path d="M36,20 Q54,27 52,36" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1.6" stroke-linecap="round"/>
+            <!-- Outer teal ring -->
+            <circle cx="45" cy="45" r="44" fill="rgba(255,255,255,0.08)"/>
+            <circle cx="45" cy="45" r="41.5" fill="none" stroke="#2ba7b7" stroke-width="7"/>
+            <g clip-path="url(#cc)">
+              <!-- P vertical stem -->
+              <rect x="13" y="11" width="14" height="67" rx="7" fill="url(#pG)"/>
+              <!-- P bowl with inner hole via evenodd -->
+              <path fill-rule="evenodd" d="
+                M 27,11 L 46,11 Q 71,11 71,31 Q 71,51 46,51 L 27,51 Z
+                M 27,22 L 41,22 Q 60,22 60,31 Q 60,40 41,40 L 27,40 Z
+              " fill="url(#pG)"/>
+              <!-- 3D highlight blob on upper-right of bowl -->
+              <ellipse cx="57" cy="21" rx="11" ry="8.5" fill="url(#hiG)" opacity="0.72"/>
+              <!-- White leaf — sweeps from upper-right diagonally across the bowl -->
+              <path d="M41,15 C54,11 70,19 67,36 C61,28 50,25 45,30 C42,24 41,15 41,15 Z" fill="url(#lfG)"/>
+              <!-- Leaf midrib vein -->
+              <path d="M42,16 Q61,27 63,35" fill="none" stroke="rgba(255,255,255,0.40)" stroke-width="1.6" stroke-linecap="round"/>
+              <!-- Leaf side vein -->
+              <path d="M53,20 Q58,27 56,33" fill="none" stroke="rgba(255,255,255,0.24)" stroke-width="1" stroke-linecap="round"/>
             </g>
           </svg>
-          <span class="login-logo-name">PolyFarm</span>
+          <span class="login-logo-name">PoliFarm</span>
           <p class="login-logo-sub">Mobile planning for real-scale<br>polyculture raised beds.</p>
         </div>
         <div class="stack" style="margin-top:28px">
