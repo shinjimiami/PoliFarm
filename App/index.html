@@ -1458,11 +1458,14 @@
       return 'Spacing is comfortable for this target.';
     }
     function bedActionHTML(b, p = calcBed(b)) {
-      const comp = companionDb[selectedCompanion(b)];
+      const info = polycatLayoutInfo(b);
+      const step3 = info
+        ? `<div class="plain-item"><i>3</i><div><strong>Tanam ${info.refugiaActive?info.refugiaName:''}${info.refugiaActive&&info.herbsActive?' + ':''}${info.herbsActive?info.herbsName:''} sebagai companion</strong><span>${info.refugiaActive?info.refugiaName+' di kedua tepi panjang (45cm). ':''}${info.herbsActive?info.herbsName+' di kedua ujung pendek (50cm).':''}</span></div></div>`
+        : `<div class="plain-item"><i>3</i><div><strong>Add ${companionDb[selectedCompanion(b)].common.toLowerCase()} as companion</strong><span>${placementLabel(selectedPlacement(b))}. ${companionDb[selectedCompanion(b)].note}</span></div></div>`;
       return `<div class="plain-list">
         <div class="plain-item"><i>1</i><div><strong>Plant ${p.count} ${crop().common.toLowerCase()} plants</strong><span>Use ${p.actualX} cm between plants and ${p.actualY} cm between rows.</span></div></div>
         <div class="plain-item"><i>2</i><div><strong>${phRecommendation(b)}</strong><span>Current pH is ${fmtPh(b.ph)} for this bed.</span></div></div>
-        <div class="plain-item"><i>3</i><div><strong>Add ${comp.common.toLowerCase()} as companion</strong><span>${placementLabel(selectedPlacement(b))}. ${comp.note}</span></div></div>
+        ${step3}
       </div>`;
     }
     function fieldNextStepHTML() {
@@ -1522,54 +1525,80 @@
     function setGuideStep(step) { st.guideStep = (step + 3) % 3; render(false); }
     function spacingGuideHTML(b) {
       const p = calcBed(b);
-      const compId = selectedCompanion(b);
-      const comp = companionDb[compId];
-      const placement = selectedPlacement(b);
       const [mainKind, mainColor] = cropShape(st.crop);
-      const [compKind, compColor] = companionShape(compId);
       const mainCropName = crop().common;
       const mainCropLower = mainCropName.toLowerCase();
       const dot = (x, y, kind = mainKind, color = mainColor, size = 13, title = crop().n) =>
         `<span class="spacing-dot" style="left:${x}%;top:${y}%" title="${title}">${shapeHTML(kind, color, size)}</span>`;
       const scenario = st.guideStep % 3;
       const scenarioNames = [`${mainCropName} gap`, 'Row gap', 'Companion'];
-      const cropGrid = [
-        [30,30], [50,30], [70,30],
-        [30,56], [50,56], [70,56],
-        [30,82], [50,82], [70,82]
-      ];
+      const cropGrid = [[30,30],[50,30],[70,30],[30,56],[50,56],[70,56],[30,82],[50,82],[70,82]];
       const mainDots = cropGrid.map(([x,y]) => dot(x,y)).join('');
       const cropGuides = [30,50,70].map(x => `<span class="guide-grid-line v" style="left:${x}%"></span>`).join('');
-      const rowGuides = [30,56,82].map(y => `<span class="guide-grid-line h" style="top:${y}%"></span>`).join('');
+      const rowGuides  = [30,56,82].map(y => `<span class="guide-grid-line h" style="top:${y}%"></span>`).join('');
       const cropOnly = `${mainDots}
         <span class="spacing-line h" style="left:30%;width:20%;top:56%"></span>
         <span class="spacing-label" style="left:40%;top:45%">${p.actualX} cm between ${mainCropLower}</span>`;
       const rowOnly = `${mainDots}
         <span class="spacing-line v" style="left:50%;top:30%;height:26%"></span>
         <span class="spacing-label" style="left:62%;top:43%">${p.actualY} cm row gap</span>`;
-      const companionOnly = placement === 'perimeter'
-        ? `<span class="companion-strip" style="left:23%;right:23%;top:7%;height:18%"></span>
-          ${[30,50,70].map(x => dot(x,13,compKind,compColor,15,comp.n)).join('')}
-          ${[30,50,70].map(x => dot(x,56)).join('')}
-          <span class="spacing-line v" style="left:30%;top:13%;height:43%"></span>
-          <span class="spacing-label" style="left:43%;top:34%">${comp.common.toLowerCase()} edge to ${mainCropLower}</span>`
-        : placement === 'between'
-          ? `${[30,50,70].map(x => dot(x,30)).join('')}${[30,50,70].map(x => dot(x,82)).join('')}
-            ${dot(40,56,compKind,compColor,12,comp.n)}${dot(60,56,compKind,compColor,12,comp.n)}
-            <span class="companion-strip" style="left:36%;right:36%;top:42%;height:28%"></span>
-            <span class="spacing-line v" style="left:40%;top:30%;height:26%"></span>
-            <span class="spacing-label" style="left:56%;top:43%">companion between rows</span>`
-          : `${[30,50,70].map(x => dot(x,30)).join('')}${[30,50,70].map(x => dot(x,56)).join('')}${[30,50,70].map(x => dot(x,82)).join('')}
-            ${dot(17,56,compKind,compColor,13,comp.n)}${dot(83,56,compKind,compColor,13,comp.n)}
-            <span class="companion-strip" style="left:10%;top:22%;bottom:10%;width:14%"></span><span class="companion-strip" style="right:10%;top:22%;bottom:10%;width:14%"></span>
-            <span class="spacing-line h" style="left:17%;width:13%;top:56%"></span>
-            <span class="spacing-label" style="left:26%;top:66%">side companion offset</span>`;
+
+      const info = polycatLayoutInfo(b);
+      let companionOnly, captions, legendHTML;
+
+      if (info) {
+        const mKind = 'circle',   mColor = '#f5a623';
+        const lKind = 'triangle', lColor = '#3d8c30';
+        const refugiaName = info.refugiaName, herbsName = info.herbsName;
+        companionOnly = `
+          ${info.herbsActive ? `<span class="companion-strip" style="left:18%;right:18%;top:3%;height:16%"></span>
+            ${[30,50,70].map(x => dot(x,10,lKind,lColor,14,herbsName)).join('')}` : ''}
+          ${[30,50,70].map(x => dot(x,42)).join('')}${[30,50,70].map(x => dot(x,67)).join('')}
+          ${info.refugiaActive ? `<span class="companion-strip" style="left:1%;top:30%;bottom:18%;width:14%"></span><span class="companion-strip" style="right:1%;top:30%;bottom:18%;width:14%"></span>
+            ${dot(8,42,mKind,mColor,13,refugiaName)}${dot(92,42,mKind,mColor,13,refugiaName)}
+            ${dot(8,67,mKind,mColor,13,refugiaName)}${dot(92,67,mKind,mColor,13,refugiaName)}` : ''}
+          ${info.herbsActive ? `<span class="companion-strip" style="left:18%;right:18%;bottom:3%;height:16%"></span>
+            ${[30,50,70].map(x => dot(x,89,lKind,lColor,14,herbsName)).join('')}` : ''}`;
+        captions = [
+          `Use this repeat for plant-to-plant distance inside one ${mainCropLower} row.`,
+          `Use this repeat for the next ${mainCropLower} row, measured center to center.`,
+          `${refugiaName} lines both long edges (45cm apart). ${herbsName} closes both short ends (50cm apart). Measure each separately from ${mainCropLower}.`
+        ];
+        legendHTML = `<span class="chip">${shapeHTML(mainKind,mainColor,10)} ${crop().n}</span>
+          ${info.refugiaActive ? `<span class="chip">${shapeHTML(mKind,mColor,10)} ${refugiaName}: Side rows</span>` : ''}
+          ${info.herbsActive   ? `<span class="chip">${shapeHTML(lKind,lColor,10)} ${herbsName}: Ends</span>` : ''}`;
+      } else {
+        const compId = selectedCompanion(b);
+        const comp = companionDb[compId];
+        const placement = selectedPlacement(b);
+        const [compKind, compColor] = companionShape(compId);
+        companionOnly = placement === 'perimeter'
+          ? `<span class="companion-strip" style="left:23%;right:23%;top:7%;height:18%"></span>
+            ${[30,50,70].map(x => dot(x,13,compKind,compColor,15,comp.n)).join('')}
+            ${[30,50,70].map(x => dot(x,56)).join('')}
+            <span class="spacing-line v" style="left:30%;top:13%;height:43%"></span>
+            <span class="spacing-label" style="left:43%;top:34%">${comp.common.toLowerCase()} edge to ${mainCropLower}</span>`
+          : placement === 'between'
+            ? `${[30,50,70].map(x => dot(x,30)).join('')}${[30,50,70].map(x => dot(x,82)).join('')}
+              ${dot(40,56,compKind,compColor,12,comp.n)}${dot(60,56,compKind,compColor,12,comp.n)}
+              <span class="companion-strip" style="left:36%;right:36%;top:42%;height:28%"></span>
+              <span class="spacing-line v" style="left:40%;top:30%;height:26%"></span>
+              <span class="spacing-label" style="left:56%;top:43%">companion between rows</span>`
+            : `${[30,50,70].map(x => dot(x,30)).join('')}${[30,50,70].map(x => dot(x,56)).join('')}${[30,50,70].map(x => dot(x,82)).join('')}
+              ${dot(17,56,compKind,compColor,13,comp.n)}${dot(83,56,compKind,compColor,13,comp.n)}
+              <span class="companion-strip" style="left:10%;top:22%;bottom:10%;width:14%"></span><span class="companion-strip" style="right:10%;top:22%;bottom:10%;width:14%"></span>
+              <span class="spacing-line h" style="left:17%;width:13%;top:56%"></span>
+              <span class="spacing-label" style="left:26%;top:66%">side companion offset</span>`;
+        captions = [
+          `Use this repeat for plant-to-plant distance inside one ${mainCropLower} row.`,
+          `Use this repeat for the next ${mainCropLower} row, measured center to center.`,
+          `${comp.n} uses ${placementLabel(placement).toLowerCase()} placement, so measure it separately from ${mainCropLower} spacing.`
+        ];
+        legendHTML = `<span class="chip">${shapeHTML(mainKind,mainColor,10)} ${crop().n}</span>
+          <span class="chip">${shapeHTML(compKind,compColor,10)} ${comp.n}: ${placementLabel(placement)}</span>`;
+      }
+
       const scenarioBody = [cropOnly, rowOnly, companionOnly][scenario];
-      const captions = [
-        `Use this repeat for plant-to-plant distance inside one ${mainCropLower} row.`,
-        `Use this repeat for the next ${mainCropLower} row, measured center to center.`,
-        `${comp.n} uses ${placementLabel(placement).toLowerCase()} placement, so measure it separately from ${mainCropLower} spacing.`
-      ];
       const guideLines = scenario === 0 ? cropGuides : scenario === 1 ? rowGuides : '';
       return `<div class="spacing-guide">
         <div class="spacing-guide-head">
@@ -1588,10 +1617,7 @@
           ${scenarioBody}
         </div>
         <p class="guide-caption">${captions[scenario]}</p>
-        <div class="legend">
-          <span class="chip">${shapeHTML(mainKind, mainColor, 10)} ${crop().n}</span>
-          <span class="chip">${shapeHTML(compKind, compColor, 10)} ${comp.n}: ${placementLabel(placement)}</span>
-        </div>
+        <div class="legend">${legendHTML}</div>
       </div>`;
     }
     function renameBed(i, name) {
@@ -2686,7 +2712,7 @@
               </div>` : ''}
             </div>`;
           }).join('')}
-          <button class="btn" onclick="nav('main')">View planting layout →</button>
+          ${st.beds.map(b=>`<button class="btn" onclick="st.expandedBed='${b.id}';st.tab='beds';nav('main')">View planting layout · ${b.name||b.id} →</button>`).join('')}
         </div>
       </section>`;
     }
@@ -2800,30 +2826,99 @@
       </div>`;
     }
 
+    function polycatLayoutInfo(b) {
+      const choices = st.polycatChoice?.[b.id];
+      if (!choices) return null;
+      const cancelled = st.polycatCancelled?.[b.id] || {};
+      const priorityCats = getPriorityCats(st.survey);
+      return {
+        refugiaActive: priorityCats.includes('refugia') && !cancelled.refugia,
+        herbsActive:   priorityCats.includes('herbs')   && !cancelled.herbs,
+        refugiaName: (POLYCAT_PLANTS.refugia.find(p=>p.id===choices.refugia)||POLYCAT_PLANTS.refugia[0]).name,
+        herbsName:   (POLYCAT_PLANTS.herbs.find(p=>p.id===choices.herbs)||POLYCAT_PLANTS.herbs[0]).name,
+      };
+    }
+
     function layoutHTML(b) {
       const p = calcBed(b);
+      const g = bedGeometry(b, p);
+      const dots = [];
+      const [mainKind, mainColor] = cropShape(st.crop);
+      const info = polycatLayoutInfo(b);
+
+      if (info) {
+        // Multi-companion: Cabai interior + Marigold long edges + Lemongrass short ends
+        const mKind = 'circle',   mColor = '#f5a623', mSpacing = 45;
+        const lKind = 'triangle', lColor = '#3d8c30', lSpacing = 50;
+        const mEdgeX = Math.min(mSpacing / 2, g.widthCm * 0.10);
+        const lEndY  = Math.min(lSpacing / 2, g.lengthCm * 0.04);
+        // Cabai — interior, skip reserved edge/end rows
+        g.ys.forEach((yCm, r) => {
+          if (info.herbsActive   && (r === 0 || r === g.ys.length - 1) && p.rows > 4) return;
+          g.xs.forEach((xCm, c) => {
+            if (info.refugiaActive && (c === 0 || c === g.xs.length - 1) && p.cols > 2) return;
+            dots.push(`<span class="plant-dot shape-dot" style="left:${percentPos(xCm,g.widthCm)}%;top:${percentPos(yCm,g.lengthCm)}%" title="${crop().n}">${shapeHTML(mainKind,mainColor,13)}</span>`);
+          });
+        });
+        // Marigold — both long edges
+        if (info.refugiaActive) {
+          axisPositions(g.lengthCm, mSpacing).forEach(yCm => {
+            [mEdgeX, g.widthCm - mEdgeX].forEach(xCm =>
+              dots.push(`<span class="plant-dot shape-dot" style="left:${percentPos(xCm,g.widthCm)}%;top:${percentPos(yCm,g.lengthCm)}%" title="${info.refugiaName}">${shapeHTML(mKind,mColor,11)}</span>`)
+            );
+          });
+        }
+        // Lemongrass — both short ends
+        if (info.herbsActive) {
+          axisPositions(g.widthCm, lSpacing).forEach(xCm => {
+            [lEndY, g.lengthCm - lEndY].forEach(yCm =>
+              dots.push(`<span class="plant-dot shape-dot" style="left:${percentPos(xCm,g.widthCm)}%;top:${percentPos(yCm,g.lengthCm)}%" title="${info.herbsName}">${shapeHTML(lKind,lColor,11)}</span>`)
+            );
+          });
+        }
+        const yGuideStep = Math.max(1, Math.ceil(g.ys.length / 18));
+        const guideLines = [
+          ...g.xs.map(x => `<span class="layout-guide-line v" style="left:${percentPos(x,g.widthCm)}%"></span>`),
+          ...g.ys.filter((_,i) => i % yGuideStep === 0).map(y => `<span class="layout-guide-line h" style="top:${percentPos(y,g.lengthCm)}%"></span>`)
+        ].join('');
+        const aspectH = clamp((b.length / b.width) * 260, 260, 620);
+        const layoutW = Math.min(360, Math.max(230, b.width / b.length * aspectH));
+        return `<div class="layout-wrap">
+          <div class="scale-stage">
+            <div class="scale-left"><span>0m</span><span>${fmtPlain(b.length)}m</span></div>
+            <div class="layout" style="--layout-w:${layoutW}px;--layout-h:${aspectH}px">
+              ${guideLines}${dots.join('')}
+            </div>
+            <div class="scale-bottom"><span>0m</span><span>${fmtPlain(b.width)}m</span></div>
+          </div>
+        </div>
+        <div class="legend">
+          <span class="chip">${shapeHTML(mainKind,mainColor,10)} ${crop().n}: ${p.actualX}×${p.actualY}cm</span>
+          ${info.refugiaActive ? `<span class="chip">${shapeHTML(mKind,mColor,10)} ${info.refugiaName}: Side rows</span>` : ''}
+          ${info.herbsActive   ? `<span class="chip">${shapeHTML(lKind,lColor,10)} ${info.herbsName}: Ends</span>` : ''}
+          <span class="chip">Scale ${fmtPlain(b.width)}m×${fmtPlain(b.length)}m</span>
+        </div>`;
+      }
+
+      // Legacy single-companion mode
       const compId = selectedCompanion(b);
       const comp = companionDb[compId];
       const placement = selectedPlacement(b);
-      const dots = [];
-      const [mainKind, mainColor] = cropShape(st.crop);
       const [compKind, compColor] = companionShape(compId);
-      const g = bedGeometry(b, p);
       const reservePerimeter = placement === 'perimeter' && p.rows > 4 && p.cols > 2;
       g.ys.forEach((yCm, r) => {
         g.xs.forEach((xCm, c) => {
-          if (reservePerimeter && (r === 0 || r === g.ys.length - 1 || c === 0 || c === g.xs.length - 1)) return;
-          const x = percentPos(xCm, g.widthCm);
-          const y = percentPos(yCm, g.lengthCm);
-          dots.push(`<span class="plant-dot shape-dot" style="left:${x}%;top:${y}%" title="${crop().n}">${shapeHTML(mainKind, mainColor, 13)}</span>`);
+          if (reservePerimeter && (r === 0 || r === g.ys.length-1 || c === 0 || c === g.xs.length-1)) return;
+          dots.push(`<span class="plant-dot shape-dot" style="left:${percentPos(xCm,g.widthCm)}%;top:${percentPos(yCm,g.lengthCm)}%" title="${crop().n}">${shapeHTML(mainKind,mainColor,13)}</span>`);
         });
       });
-      const addComp = (x, y) => dots.push(`<span class="plant-dot shape-dot" style="left:${x}%;top:${y}%" title="${comp.n}">${shapeHTML(compKind, compColor, compId === 'jagung_sela' ? 16 : 12)}</span>`);
-      companionPositions(b, p, comp, placement, g).forEach(pt => addComp(pt.x, pt.y));
+      companionPositions(b, p, comp, placement, g).forEach(({x,y}) =>
+        dots.push(`<span class="plant-dot shape-dot" style="left:${x}%;top:${y}%" title="${comp.n}">${shapeHTML(compKind,compColor,compId==='jagung_sela'?16:12)}</span>`)
+      );
       const yGuideStep = Math.max(1, Math.ceil(g.ys.length / 18));
       const guideLines = [
-        ...g.xs.map(x => `<span class="layout-guide-line v" style="left:${percentPos(x, g.widthCm)}%"></span>`),
-        ...g.ys.filter((_, i) => i % yGuideStep === 0).map(y => `<span class="layout-guide-line h" style="top:${percentPos(y, g.lengthCm)}%"></span>`)
+        ...g.xs.map(x => `<span class="layout-guide-line v" style="left:${percentPos(x,g.widthCm)}%"></span>`),
+        ...g.ys.filter((_,i) => i % yGuideStep === 0).map(y => `<span class="layout-guide-line h" style="top:${percentPos(y,g.lengthCm)}%"></span>`)
       ].join('');
       const aspectH = clamp((b.length / b.width) * 260, 260, 620);
       const layoutW = Math.min(360, Math.max(230, b.width / b.length * aspectH));
@@ -2831,15 +2926,14 @@
         <div class="scale-stage">
           <div class="scale-left"><span>0m</span><span>${fmtPlain(b.length)}m</span></div>
           <div class="layout" style="--layout-w:${layoutW}px;--layout-h:${aspectH}px">
-            ${guideLines}
-            ${dots.join('')}
+            ${guideLines}${dots.join('')}
           </div>
           <div class="scale-bottom"><span>0m</span><span>${fmtPlain(b.width)}m</span></div>
         </div>
       </div>
       <div class="legend">
-        <span class="chip">${shapeHTML(mainKind, mainColor, 10)} ${crop().n}: ${p.actualX}x${p.actualY} cm</span>
-        <span class="chip">${shapeHTML(compKind, compColor, 10)} ${comp.n}: ${placementLabel(placement)}</span>
+        <span class="chip">${shapeHTML(mainKind,mainColor,10)} ${crop().n}: ${p.actualX}x${p.actualY} cm</span>
+        <span class="chip">${shapeHTML(compKind,compColor,10)} ${comp.n}: ${placementLabel(placement)}</span>
         <span class="chip">Scale ${fmtPlain(b.width)}m x ${fmtPlain(b.length)}m</span>
       </div>`;
     }
