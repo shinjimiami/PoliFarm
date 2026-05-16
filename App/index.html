@@ -2686,7 +2686,134 @@
               </div>` : ''}
             </div>`;
           }).join('')}
-          <button class="btn" onclick="nav('main')">View planting layout →</button>
+          ${st.beds.map(b=>`<button class="btn" onclick="st.layoutBedId='${b.id}';nav('plantlayout')">Lihat tata letak tanam · ${b.name||b.id} →</button>`).join('')}
+        </div>
+      </section>`;
+    }
+
+    // ── Planting layout screen ──────────────────────────────────────────────
+    function plantingLayoutSVG(b, cabaiPts, marigoldPts, lemPts) {
+      const W = b.width * 100;   // 200 cm
+      const L = b.length * 100;  // 700 cm
+      // Scale to a nice display size (same aspect clamping as existing layoutHTML)
+      const DH = Math.min(620, Math.max(260, (L / W) * 260));
+      const DW = Math.min(360, Math.max(230, (W / L) * DH));
+      const sx = DW / W, sy = DH / L;
+      const PL = 28, PT = 12, PR = 6, PB = 26;
+      const vbW = DW + PL + PR, vbH = DH + PT + PB;
+      const bx = PL, by = PT;
+      const g = [];
+      // Bed fill + border
+      g.push(`<rect x="${bx}" y="${by}" width="${DW}" height="${DH}" fill="#2e5228" stroke="rgba(255,255,255,.22)" stroke-width="1" rx="2"/>`);
+      // Subtle grid lines
+      for (let x = 50; x < W; x += 50) g.push(`<line x1="${(bx+x*sx).toFixed(1)}" y1="${by}" x2="${(bx+x*sx).toFixed(1)}" y2="${by+DH}" stroke="rgba(255,255,255,.07)" stroke-width="0.5"/>`);
+      for (let y = 60; y < L; y += 60)  g.push(`<line x1="${bx}" y1="${(by+y*sy).toFixed(1)}" x2="${bx+DW}" y2="${(by+y*sy).toFixed(1)}" stroke="rgba(255,255,255,.07)" stroke-width="0.5"/>`);
+      // X ruler (bottom) every 50 cm, label every 100 cm
+      for (let x = 0; x <= W; x += 50) {
+        const px = (bx + x * sx).toFixed(1);
+        g.push(`<line x1="${px}" y1="${by+DH}" x2="${px}" y2="${by+DH+5}" stroke="#7aafb8" stroke-width="0.7"/>`);
+        if (x % 100 === 0) g.push(`<text x="${px}" y="${by+DH+13}" text-anchor="middle" font-size="8" fill="#7aafb8">${(x/100).toFixed(0)}m</text>`);
+      }
+      g.push(`<text x="${bx+DW/2}" y="${by+DH+24}" text-anchor="middle" font-size="7" fill="#4d7585">lebar ${b.width}m</text>`);
+      // Y ruler (left) every 100 cm
+      for (let y = 0; y <= L; y += 100) {
+        const py = (by + y * sy).toFixed(1);
+        g.push(`<line x1="${bx-5}" y1="${py}" x2="${bx}" y2="${py}" stroke="#7aafb8" stroke-width="0.7"/>`);
+        g.push(`<text x="${bx-7}" y="${(+py+3).toFixed(0)}" text-anchor="end" font-size="8" fill="#7aafb8">${y/100}m</text>`);
+      }
+      // Lemongrass — green diamond
+      lemPts.forEach(({x, y}) => {
+        const px = (bx+x*sx).toFixed(1), py = (by+y*sy).toFixed(1), r = 5.5;
+        g.push(`<polygon points="${px},${(+py-r).toFixed(1)} ${(+px+r).toFixed(1)},${py} ${px},${(+py+r).toFixed(1)} ${(+px-r).toFixed(1)},${py}" fill="#52b030" stroke="rgba(255,255,255,.7)" stroke-width="0.8"/>`);
+      });
+      // Marigold — orange 6-point star
+      marigoldPts.forEach(({x, y}) => {
+        const px = bx+x*sx, py = by+y*sy, r = 5;
+        const pts = Array.from({length:6},(_,i)=>{const a=(i*60-90)*Math.PI/180;return `${(px+r*Math.cos(a)).toFixed(1)},${(py+r*Math.sin(a)).toFixed(1)}`;}).join(' ');
+        g.push(`<polygon points="${pts}" fill="#f5a623" stroke="rgba(255,255,255,.55)" stroke-width="0.8"/>`);
+      });
+      // Cabai — red circle
+      cabaiPts.forEach(({x, y}) => {
+        g.push(`<circle cx="${(bx+x*sx).toFixed(1)}" cy="${(by+y*sy).toFixed(1)}" r="3.5" fill="#c85030" stroke="rgba(255,255,255,.5)" stroke-width="0.8"/>`);
+      });
+      return `<svg viewBox="0 0 ${vbW} ${vbH}" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block"><rect width="${vbW}" height="${vbH}" fill="#1a3820"/>${g.join('')}</svg>`;
+    }
+
+    function S_plantlayout() {
+      const b = st.beds.find(b=>b.id===(st.layoutBedId||st.beds[0].id))||st.beds[0];
+      const choices = st.polycatChoice?.[b.id] || {};
+      const cancelled = st.polycatCancelled?.[b.id] || {};
+      const priorityCats = getPriorityCats(st.survey);
+      const refugiaActive = priorityCats.includes('refugia') && !cancelled.refugia;
+      const herbsActive   = priorityCats.includes('herbs')   && !cancelled.herbs;
+      const refugiaPlant  = POLYCAT_PLANTS.refugia.find(p=>p.id===choices.refugia)||POLYCAT_PLANTS.refugia[0];
+      const herbsPlant    = POLYCAT_PLANTS.herbs.find(p=>p.id===choices.herbs)||POLYCAT_PLANTS.herbs[0];
+
+      const W = b.width  * 100;  // 200 cm
+      const L = b.length * 100;  // 700 cm
+
+      // Marigold: along both long edges (x=22 & x=W-22), every 45 cm
+      const marigoldPts = [];
+      if (refugiaActive) {
+        const edge = 22, step = 45;
+        for (let y = edge; y <= L - edge; y += step) {
+          marigoldPts.push({x: edge, y});
+          marigoldPts.push({x: W - edge, y});
+        }
+      }
+      // Lemongrass: both short ends (y=25 & y=L-25), every 50 cm across width
+      const lemPts = [];
+      if (herbsActive) {
+        const margin = 25, step = 50;
+        for (let x = margin; x <= W - margin; x += step) {
+          lemPts.push({x, y: margin});
+          lemPts.push({x, y: L - margin});
+        }
+      }
+      // Cabai: interior 50×60 cm grid, clear of companion zones
+      const cabaiPts = [];
+      const cyStart = herbsActive ? 75 : 40, cyEnd = L - cyStart;
+      for (let x = 50; x <= W - 50; x += 50)
+        for (let y = cyStart; y <= cyEnd; y += 60)
+          cabaiPts.push({x, y});
+
+      const svg = plantingLayoutSVG(b, cabaiPts, marigoldPts, lemPts);
+
+      return `<section>
+        <div class="top" style="padding-bottom:14px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <button onclick="nav('companion')" style="background:none;border:none;padding:0;font-size:18px;color:var(--muted);cursor:pointer;line-height:1">←</button>
+            <div class="step" style="margin:0">Planting Layout</div>
+          </div>
+          <h1>${b.name||b.id}</h1>
+          <p class="sub">${crop().common} · ${b.length}m × ${b.width}m · pH ${fmtPh(b.ph)}</p>
+        </div>
+        <div class="section stack">
+          <div style="background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden">
+            ${svg}
+          </div>
+          <!-- Legend -->
+          <div class="legend" style="flex-wrap:wrap;gap:6px">
+            <span class="chip"><span style="color:#c85030;font-size:10px">●</span> ${crop().common} (${cabaiPts.length}) · 50×60cm</span>
+            ${refugiaActive ? `<span class="chip"><span style="color:#f5a623;font-size:10px">★</span> ${refugiaPlant.name} (${marigoldPts.length}) · 45×45cm</span>` : ''}
+            ${herbsActive   ? `<span class="chip"><span style="color:#52b030;font-size:10px">◆</span> ${herbsPlant.name} (${lemPts.length}) · 50×50cm</span>` : ''}
+          </div>
+          <!-- Placement notes -->
+          <div class="panel stack" style="gap:10px">
+            <div style="font-size:11px;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Placement rationale</div>
+            ${refugiaActive ? `<div style="display:flex;gap:10px;align-items:flex-start">
+              <span style="color:#f5a623;font-size:16px;flex-shrink:0;margin-top:1px">★</span>
+              <div style="font-size:12px;color:var(--ink);line-height:1.55"><strong>${refugiaPlant.name}</strong> — ditempatkan di kedua tepi panjang (border row) sehingga tawon parasitoid direkrut dari seluruh sisi bed.</div>
+            </div>` : ''}
+            ${herbsActive ? `<div style="display:flex;gap:10px;align-items:flex-start">
+              <span style="color:#52b030;font-size:16px;flex-shrink:0;margin-top:1px">◆</span>
+              <div style="font-size:12px;color:var(--ink);line-height:1.55"><strong>${herbsPlant.name}</strong> — ditempatkan di kedua ujung pendek sebagai penghalang aromatik, mengganggu navigasi ngengat dari dua arah.</div>
+            </div>` : ''}
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <span style="color:#c85030;font-size:16px;flex-shrink:0;margin-top:1px">●</span>
+              <div style="font-size:12px;color:var(--ink);line-height:1.55"><strong>${crop().common}</strong> — ${cabaiPts.length} tanaman di zona tengah, jarak 50×60cm sesuai database penelitian.</div>
+            </div>
+          </div>
         </div>
       </section>`;
     }
@@ -2919,7 +3046,7 @@
       const navEl = document.getElementById('bottom-nav');
       navEl.classList.toggle('show', st.screen === 'main');
       document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === st.tab || (btn.dataset.tab === 'dashboard' && st.tab === 'bed')));
-      const screens = {login:S_login, field:S_field, beds:S_beds, tutorial:S_tutorial, scan:S_scan, fieldoverview:S_fieldoverview, soil:S_soil, survey:S_survey, ailoading:S_ailoading, companion:S_companion};
+      const screens = {login:S_login, field:S_field, beds:S_beds, tutorial:S_tutorial, scan:S_scan, fieldoverview:S_fieldoverview, soil:S_soil, survey:S_survey, ailoading:S_ailoading, companion:S_companion, plantlayout:S_plantlayout};
       if (screens[st.screen]) scr.innerHTML = screens[st.screen]();
       else {
         const tabs = {dashboard:T_dashboard, beds:T_beds, sensor:T_sensor, settings:T_settings};
