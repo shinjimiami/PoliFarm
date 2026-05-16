@@ -1039,6 +1039,39 @@
     .login-logo-wrap { margin-bottom:18px; }
     .login-logo-name { font-size:42px; font-weight:950; color:white; letter-spacing:-1px; margin-top:10px; display:block; }
     .login-logo-sub { color:#a6e2ec; margin-top:4px; font-size:15px; line-height:1.4; }
+    /* ── Survey screen ── */
+    .survey-opt-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .survey-opt {
+      border:1.5px solid var(--line); border-radius:10px; padding:12px 8px;
+      background:var(--paper); cursor:pointer; text-align:center;
+      font-size:12px; font-weight:700; color:var(--ink);
+      display:flex; flex-direction:column; align-items:center; gap:5px;
+      transition:border-color .15s,background .15s; line-height:1.3;
+    }
+    .survey-opt.sel { border-color:var(--leaf); background:var(--mist); color:var(--leaf-2); }
+    .survey-opt-icon { font-size:20px; }
+    /* ── AI loading screen ── */
+    .ai-loading-wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:80vh; padding:32px 24px; text-align:center; gap:22px; }
+    .ai-ring-wrap { position:relative; width:100px; height:100px; }
+    .ai-ring-svg { width:100%; height:100%; animation:aiSpin 1.4s linear infinite; transform-origin:center; }
+    @keyframes aiSpin { to { transform:rotate(360deg); } }
+    .ai-ring-inner { position:absolute; top:14px; left:14px; width:72px; height:72px; border-radius:50%; background:var(--mist); border:1.5px solid var(--line); display:grid; place-items:center; font-size:30px; animation:aiPulse 1.4s ease-in-out infinite; }
+    @keyframes aiPulse { 0%,100%{transform:scale(1);opacity:.85} 50%{transform:scale(1.08);opacity:1} }
+    .ai-step-list { display:flex; flex-direction:column; gap:8px; width:100%; max-width:270px; text-align:left; }
+    .ai-step-row { font-size:12px; font-weight:750; color:var(--muted); display:flex; align-items:center; gap:10px; }
+    .ai-step-row.done { color:var(--leaf-2); }
+    .ai-step-row.active { color:var(--ink); }
+    .ai-step-badge { width:20px; height:20px; border-radius:50%; display:grid; place-items:center; font-size:10px; font-weight:900; flex-shrink:0; }
+    .ai-step-row.done  .ai-step-badge { background:var(--leaf); color:white; }
+    .ai-step-row.active .ai-step-badge { background:var(--mist); border:2px solid var(--leaf); animation:aiPulse .9s ease-in-out infinite; }
+    .ai-step-row:not(.done):not(.active) .ai-step-badge { background:var(--line); color:var(--muted); }
+    /* ── Pros/cons card ── */
+    .proscons-card { background:var(--wash); border:1.5px solid var(--line); border-radius:var(--radius); padding:14px 16px; display:flex; flex-direction:column; gap:7px; }
+    .proscons-row { display:flex; align-items:flex-start; gap:9px; font-size:12px; line-height:1.45; color:var(--ink); font-weight:600; }
+    .proscons-dot { width:20px; height:20px; border-radius:50%; display:grid; place-items:center; font-size:10px; font-weight:900; flex-shrink:0; margin-top:1px; }
+    .proscons-dot.pro { background:var(--mist); color:var(--leaf-2); }
+    .proscons-dot.con { background:rgba(185,50,30,.12); color:#8b3020; }
+    .risk-warn { background:rgba(185,50,30,.08); border:1.5px solid rgba(185,50,30,.28); border-radius:8px; padding:8px 10px; font-size:11px; font-weight:800; color:#8b3020; display:flex; gap:6px; align-items:flex-start; line-height:1.4; margin-top:4px; }
   </style>
 </head>
 <body>
@@ -1126,6 +1159,7 @@
       guideStep:0,
       chosen:{},
       placements:{},
+      survey: null,
       beds:[
         {id:'A1', length:7, width:1.2, ph:6.2, moisture:48, lat:-6.2001, lng:106.8171},
         {id:'A2', length:7, width:1.2, ph:5.6, moisture:42, lat:-6.2003, lng:106.8173}
@@ -1617,6 +1651,15 @@
         }, 2400);
         return;
       }
+      if (screen === 'ailoading') {
+        st.screen = 'ailoading';
+        st.aiStep = 0;
+        render();
+        scanTimer = setTimeout(() => { st.aiStep = 1; render(false); }, 900);
+        scanTimer = setTimeout(() => { st.aiStep = 2; render(false); }, 1800);
+        scanTimer = setTimeout(() => { nav('companion'); }, 2800);
+        return;
+      }
       if (screen === 'main') st.tab = 'dashboard';
       render();
     }
@@ -1645,6 +1688,92 @@
       nav('scan');
     }
     function showMain(tab) { st.screen = 'main'; st.tab = tab; render(); }
+
+    function setSurvey(key, val) {
+      if (!st.survey) st.survey = {};
+      st.survey[key] = val;
+      render(false);
+    }
+    function togglePest(p) {
+      if (!st.survey) st.survey = {};
+      if (!st.survey.pests) st.survey.pests = [];
+      if (p === 'none') {
+        st.survey.pests = st.survey.pests.includes('none') ? [] : ['none'];
+      } else {
+        st.survey.pests = st.survey.pests.filter(x => x !== 'none');
+        const idx = st.survey.pests.indexOf(p);
+        if (idx >= 0) st.survey.pests.splice(idx, 1); else st.survey.pests.push(p);
+      }
+      render(false);
+    }
+    function bedMixProsCons(bedId) {
+      const b = st.beds.find(x => x.id === bedId) || st.beds[0];
+      const choices = st.polycatChoice?.[bedId] || {};
+      const sv = st.survey || {};
+      const pests = sv.pests || [];
+      const pros = [], cons = [];
+      // pH compatibility across all selections
+      let phMismatches = 0;
+      POLYCAT_DEFS.forEach(cat => {
+        const plant = POLYCAT_PLANTS[cat.key].find(p => p.id === choices[cat.key]);
+        if (!plant?.ph) return;
+        const gap = Math.max((plant.ph[0] - b.ph), (b.ph - plant.ph[1]), 0);
+        if (gap > 0.5) { phMismatches++; cons.push(`${plant.name} (${cat.label}) is outside its ideal pH range — may underperform at pH ${fmtPh(b.ph)}`); }
+      });
+      if (phMismatches === 0) pros.push(`All selected plants are compatible with pH ${fmtPh(b.ph)}`);
+      // Season
+      if (sv.season === 'dry') {
+        const droughtIds = ['krokot_gc','sereh_h','kunyit_h','arachis_gc','crotalaria_lcc'];
+        if (POLYCAT_DEFS.some(cat => droughtIds.includes(choices[cat.key]))) pros.push('Mix includes drought-tolerant plants suited for dry season');
+        const wetIds = ['selada_ic','semanggi_gc','pegagan_gc'];
+        if (POLYCAT_DEFS.some(cat => wetIds.includes(choices[cat.key]))) cons.push('Some selections prefer moist conditions — monitor during dry months');
+      } else if (sv.season === 'rainy') {
+        const moistIds = ['pegagan_gc','mucuna_lcc','calopo_lcc'];
+        if (POLYCAT_DEFS.some(cat => moistIds.includes(choices[cat.key]))) pros.push('Rainy season supports ground cover and LCC establishment');
+        if (b.moisture > 65) cons.push('High moisture in rainy season may increase fungal risk in dense plantings');
+      }
+      // Pests
+      if (pests.includes('aphids')) {
+        const repelIds = ['kemangi_h','sereh_h','marigold_r','zinnia_r'];
+        if (POLYCAT_DEFS.some(cat => repelIds.includes(choices[cat.key]))) pros.push('Selected mix includes aphid-repelling plants (active protection)');
+        else cons.push('Aphids detected — consider Marigold or Basil in the mix for better protection');
+      }
+      if (pests.includes('caterpillar')) {
+        const catIds = ['marigold_r','zinnia_r','kenikir_r'];
+        if (POLYCAT_DEFS.some(cat => catIds.includes(choices[cat.key]))) pros.push('Refugia selection attracts parasitoid wasps that control caterpillars');
+      }
+      if (pests.includes('fungi')) {
+        const fungiIds = ['kunyit_h','jahe_h'];
+        if (POLYCAT_DEFS.some(cat => fungiIds.includes(choices[cat.key]))) pros.push('Turmeric/Ginger provides antifungal compounds — active soil protection');
+        else cons.push('Fungal issues present — Turmeric or Ginger would add antifungal protection');
+      }
+      // Irrigation
+      if (sv.irrigation === false) {
+        const lowWaterIds = ['krokot_gc','arachis_gc','kunyit_h','sereh_h','crotalaria_lcc'];
+        if (POLYCAT_DEFS.some(cat => lowWaterIds.includes(choices[cat.key]))) pros.push('Several selections are low-water — practical without irrigation');
+        const needWaterIds = ['selada_ic','pegagan_gc','semanggi_gc'];
+        if (POLYCAT_DEFS.some(cat => needWaterIds.includes(choices[cat.key]))) cons.push('Some plants need consistent moisture — risk of stress without irrigation');
+      }
+      // Chemical fert
+      if (sv.chemFert === true) {
+        const lccIds = ['mucuna_lcc','calopo_lcc','crotalaria_lcc','pueraria_lcc'];
+        if (POLYCAT_DEFS.some(cat => lccIds.includes(choices[cat.key]))) pros.push('LCC selection fixes nitrogen naturally — reduces chemical fertilizer dependency');
+      }
+      if (pros.length === 0) pros.push('All plants are compatible with current bed conditions');
+      if (cons.length === 0) cons.push('No significant risks detected with current selection');
+      return { pros: pros.slice(0, 3), cons: cons.slice(0, 2) };
+    }
+    function plantRiskText(plant, catKey, b) {
+      const phGap = Math.max((plant.ph?.[0]||5) - b.ph, b.ph - (plant.ph?.[1]||8), 0);
+      if (phGap > 0.5) return `pH ${fmtPh(b.ph)} is outside ${plant.name}'s ideal range (${(plant.ph?.[0]||'?')}–${(plant.ph?.[1]||'?')}) — may cause nutrient deficiency or poor growth`;
+      if (phGap > 0.2) return `pH slightly outside ideal range — monitor plant vigor in the first two weeks`;
+      const sv = st.survey || {};
+      if (sv.season === 'dry' && ['selada_ic','semanggi_gc'].includes(plant.id)) return `${plant.name} prefers cooler, wetter conditions — may bolt or fail to establish in dry season`;
+      if (sv.irrigation === false && ['pegagan_gc','selada_ic'].includes(plant.id)) return `${plant.name} needs consistent moisture — high risk of wilting without irrigation`;
+      const mo = b.moisture;
+      if (catKey === 'groundcover' && plant.id === 'semanggi_gc' && mo < 40) return 'Clover needs higher moisture to establish — may fail in this dry bed';
+      return 'Lower match score — will still grow, but not optimal for this specific bed';
+    }
 
     function S_login() {
       return `<section class="login">
@@ -1705,7 +1834,7 @@
       </section>`;
     }
 
-    const MAIN_CROP_IDS = ['cabai','jagung','singkong','tomat'];
+    const MAIN_CROP_IDS = ['tomat','cabai','terung','jagung','padi','singkong','ubi','kedelai'];
     function plantCount() { return Math.max(1, Math.round(st.target / crop().yield)); }
     function setPlants(n) { st.target = clamp(num(n,1),1,99999) * crop().yield; saveField(); render(); }
     function S_beds() {
@@ -1717,8 +1846,12 @@
       const plants = plantCount();
       const yieldPerHarvest = fmt(plants * c.yield, 0);
       const harvestNote = c.id==='cabai' ? 'Chili is harvested ~10× over 6 months — season total is much higher.'
+        : c.id==='terung' ? 'Eggplant harvested continuously over 3–4 months.'
         : c.id==='jagung' ? 'Corn is harvested once per cycle (~3 months).'
+        : c.id==='padi' ? 'Upland rice harvested once per season (~4 months).'
         : c.id==='singkong' ? 'Cassava is harvested once after 8–12 months.'
+        : c.id==='ubi' ? 'Sweet potato harvested once after 3–4 months.'
+        : c.id==='kedelai' ? 'Soybean harvested once per cycle (~3 months).'
         : 'Tomato is harvested multiple times over ~4 months.';
       return `<section>
         <div class="top">
@@ -2058,7 +2191,111 @@
               </div>
             </div>`;
           }).join('')}
-          <button class="btn" onclick="nav('companion')">Choose polyculture planting →</button>
+          <button class="btn" onclick="nav('survey')">Choose polyculture planting →</button>
+        </div>
+      </section>`;
+    }
+
+    function S_survey() {
+      const sv = st.survey || {};
+      const pests = sv.pests || [];
+      const pestOpts = [
+        {id:'aphids',    icon:'🪲', label:'Aphids'},
+        {id:'caterpillar',icon:'🐛', label:'Caterpillars'},
+        {id:'fungi',     icon:'🍄', label:'Fungus / Mold'},
+        {id:'none',      icon:'✅', label:'No pests'},
+      ];
+      const ready = sv.season && sv.irrigation !== undefined && sv.chemFert !== undefined;
+      return `<section>
+        <div class="top">
+          <div class="step">Field conditions</div>
+          <h1>Quick questionnaire</h1>
+          <p class="sub">Help us fine-tune your polyculture recommendation for each bed.</p>
+        </div>
+        <div class="section stack">
+          <!-- Season -->
+          <div class="panel stack">
+            <label style="font-size:13px;font-weight:800;color:var(--ink)">What is the current growing season?</label>
+            <div class="survey-opt-grid">
+              <button class="survey-opt ${sv.season==='dry'?'sel':''}" onclick="setSurvey('season','dry')">
+                <span class="survey-opt-icon">☀️</span><strong>Dry Season</strong><span style="font-weight:500">Low rainfall, hot days</span>
+              </button>
+              <button class="survey-opt ${sv.season==='rainy'?'sel':''}" onclick="setSurvey('season','rainy')">
+                <span class="survey-opt-icon">🌧️</span><strong>Rainy Season</strong><span style="font-weight:500">High rainfall, humid</span>
+              </button>
+            </div>
+          </div>
+          <!-- Pests -->
+          <div class="panel stack">
+            <label style="font-size:13px;font-weight:800;color:var(--ink)">Current pest conditions <span style="font-weight:500;color:var(--muted)">(select all that apply)</span></label>
+            <div class="survey-opt-grid">
+              ${pestOpts.map(p => `<button class="survey-opt ${pests.includes(p.id)?'sel':''}" onclick="togglePest('${p.id}')">
+                <span class="survey-opt-icon">${p.icon}</span><strong>${p.label}</strong>
+              </button>`).join('')}
+            </div>
+          </div>
+          <!-- Irrigation -->
+          <div class="panel stack">
+            <label style="font-size:13px;font-weight:800;color:var(--ink)">Do you have irrigation access?</label>
+            <div class="survey-opt-grid">
+              <button class="survey-opt ${sv.irrigation===true?'sel':''}" onclick="setSurvey('irrigation',true)">
+                <span class="survey-opt-icon">💧</span><strong>Yes</strong><span style="font-weight:500">Drip or manual irrigation</span>
+              </button>
+              <button class="survey-opt ${sv.irrigation===false?'sel':''}" onclick="setSurvey('irrigation',false)">
+                <span class="survey-opt-icon">🚫</span><strong>No</strong><span style="font-weight:500">Rain-fed only</span>
+              </button>
+            </div>
+          </div>
+          <!-- Chemical fertilizer -->
+          <div class="panel stack">
+            <label style="font-size:13px;font-weight:800;color:var(--ink)">Have you used chemical fertilizer before?</label>
+            <div class="survey-opt-grid">
+              <button class="survey-opt ${sv.chemFert===true?'sel':''}" onclick="setSurvey('chemFert',true)">
+                <span class="survey-opt-icon">🧪</span><strong>Yes, I have</strong><span style="font-weight:500">Previously used NPK etc.</span>
+              </button>
+              <button class="survey-opt ${sv.chemFert===false?'sel':''}" onclick="setSurvey('chemFert',false)">
+                <span class="survey-opt-icon">🌱</span><strong>Never</strong><span style="font-weight:500">Organic / no fert</span>
+              </button>
+            </div>
+          </div>
+          <button class="btn" onclick="nav('ailoading')" ${ready?'':'disabled style="opacity:.5;pointer-events:none"'}>
+            ${ready ? 'Analyze & generate recommendations →' : 'Please answer all questions above'}
+          </button>
+        </div>
+      </section>`;
+    }
+
+    function S_ailoading() {
+      const step = st.aiStep || 0;
+      const steps = [
+        'Reading soil pH and moisture data',
+        'Applying questionnaire conditions',
+        'Generating polyculture recommendations',
+      ];
+      return `<section>
+        <div class="ai-loading-wrap">
+          <div class="ai-ring-wrap">
+            <svg class="ai-ring-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="50" cy="50" r="44" fill="none" stroke="var(--line)" stroke-width="5"/>
+              <circle cx="50" cy="50" r="44" fill="none" stroke="var(--leaf)" stroke-width="5"
+                stroke-dasharray="276" stroke-dashoffset="207" stroke-linecap="round"/>
+            </svg>
+            <div class="ai-ring-inner">🌱</div>
+          </div>
+          <div>
+            <h2 style="font-size:22px;font-weight:950;color:var(--ink);margin-bottom:6px">Analyzing your field…</h2>
+            <p style="font-size:13px;color:var(--muted)">Matching ${st.beds.length} bed${st.beds.length!==1?'s':''} with polyculture database</p>
+          </div>
+          <div class="ai-step-list">
+            ${steps.map((s, i) => {
+              const cls = i < step ? 'done' : i === step ? 'active' : '';
+              const badge = i < step ? '✓' : i === step ? '⟳' : String(i+1);
+              return `<div class="ai-step-row ${cls}">
+                <span class="ai-step-badge">${badge}</span>
+                <span>${s}</span>
+              </div>`;
+            }).join('')}
+          </div>
         </div>
       </section>`;
     }
@@ -2220,15 +2457,15 @@
         <div class="top">
           <div class="step">Step 5 of 5</div>
           <h1>Polyculture design</h1>
-          <p class="sub">Each bed gets its own mix. Choose the best plant within each category — the optimality score updates instantly based on your bed's pH and moisture.</p>
+          <p class="sub">Each bed gets its own plant mix. Auto-matched to your soil and conditions — tap any plant to swap it and see the impact.</p>
         </div>
         <div class="section stack">
           ${st.beds.map(b => {
             const choices = st.polycatChoice[b.id];
-            const score = polycatOptimality(b.id);
-            const scoreColor = score>=88?'var(--leaf-2)':score>=72?'#d4860a':'#b83030';
             const status = overallBedStatus(b);
+            const pc = bedMixProsCons(b.id);
             return `<div class="panel stack">
+              <!-- Bed header -->
               <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
                 <div>
                   <h2>${b.name||b.id}</h2>
@@ -2236,15 +2473,11 @@
                 </div>
                 <span class="chip ${status.cls}" style="font-size:11px">${status.label}</span>
               </div>
-              <div class="polycat-layout">${polycultureLayoutSVG(b)}</div>
-              <!-- Optimality -->
-              <div class="optimality-wrap">
-                <div>
-                  <div class="optimality-score" style="color:${scoreColor}">${score}%</div>
-                  <div style="font-size:11px;font-weight:800;color:var(--muted);margin-top:2px">Planting optimality</div>
-                  <div class="optimality-bar" style="width:120px"><span style="width:${score}%;background:${scoreColor}"></span></div>
-                </div>
-                <p style="font-size:12px;color:var(--muted);line-height:1.4;flex:1">Select plants below. Best match for <strong>${b.name||b.id}</strong> is auto-highlighted — change to see score change.</p>
+              <!-- Pros / Cons summary (replaces optimality %) -->
+              <div class="proscons-card">
+                <div style="font-size:11px;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Mix assessment</div>
+                ${pc.pros.map(t=>`<div class="proscons-row"><span class="proscons-dot pro">✓</span><span>${t}</span></div>`).join('')}
+                ${pc.cons.map(t=>`<div class="proscons-row"><span class="proscons-dot con">!</span><span>${t}</span></div>`).join('')}
               </div>
               <!-- Per-category plant pickers -->
               ${POLYCAT_DEFS.map(cat => {
@@ -2253,6 +2486,8 @@
                 const selPlant = plants.find(p=>p.id===selId)||plants[0];
                 const selScore = polycatPlantScore(selPlant, cat.key, b);
                 const selCls = selScore>=82?'score-high':selScore>=65?'score-mid':'score-low';
+                const bestId = getBestPlantId(cat.key, b);
+                const isNonBest = selId !== bestId;
                 const rgb = hexToRgbStr(cat.color);
                 return `<div style="border:1px solid var(--line);border-radius:var(--radius);overflow:hidden">
                   <div class="catrow" style="padding:10px 12px;background:rgba(${rgb},.07);border-bottom:1px solid var(--line)">
@@ -2270,15 +2505,19 @@
                       const s = polycatPlantScore(p, cat.key, b);
                       const sCls = s>=82?'score-high':s>=65?'score-mid':'score-low';
                       const isSel = p.id===selId;
+                      const isBest = p.id===bestId;
                       return `<button class="plant-opt ${isSel?'selected-opt':''}" onclick="selectPolycatPlant('${b.id}','${cat.key}','${p.id}')">
                         <div class="plant-opt-icon">${p.visual}</div>
-                        <div class="plant-opt-name">${p.name}</div>
+                        <div class="plant-opt-name">${p.name}${isBest?` <span style="font-size:9px;color:var(--leaf-2);font-weight:900">★ Best</span>`:''}</div>
                         <div class="plant-opt-sci">${p.sci}</div>
                         <span class="plant-opt-score ${sCls}">${s}% match</span>
                         ${isSel?`<div style="font-size:9px;font-weight:900;color:var(--leaf-2);margin-top:3px">✓ Selected</div>`:''}
                       </button>`;
                     }).join('')}
                   </div>
+                  ${isNonBest ? `<div class="risk-warn" style="margin:0 10px 10px">
+                    ⚠ ${plantRiskText(selPlant, cat.key, b)}
+                  </div>` : ''}
                   <div style="padding:8px 12px 10px;border-top:1px solid var(--line);background:var(--wash);font-size:11px;color:var(--muted);line-height:1.4">
                     <strong style="color:var(--leaf-2)">${selPlant.name}</strong> — ${selPlant.note||selPlant.controls||cat.desc}
                   </div>
@@ -2524,7 +2763,7 @@
       const navEl = document.getElementById('bottom-nav');
       navEl.classList.toggle('show', st.screen === 'main');
       document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === st.tab || (btn.dataset.tab === 'dashboard' && st.tab === 'bed')));
-      const screens = {login:S_login, field:S_field, beds:S_beds, tutorial:S_tutorial, scan:S_scan, fieldoverview:S_fieldoverview, soil:S_soil, companion:S_companion};
+      const screens = {login:S_login, field:S_field, beds:S_beds, tutorial:S_tutorial, scan:S_scan, fieldoverview:S_fieldoverview, soil:S_soil, survey:S_survey, ailoading:S_ailoading, companion:S_companion};
       if (screens[st.screen]) scr.innerHTML = screens[st.screen]();
       else {
         const tabs = {dashboard:T_dashboard, beds:T_beds, sensor:T_sensor, settings:T_settings};
