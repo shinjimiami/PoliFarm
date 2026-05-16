@@ -1072,11 +1072,28 @@
     .proscons-dot.pro { background:var(--mist); color:var(--leaf-2); }
     .proscons-dot.con { background:rgba(185,50,30,.12); color:#8b3020; }
     .risk-warn { background:rgba(185,50,30,.08); border:1.5px solid rgba(185,50,30,.28); border-radius:8px; padding:8px 10px; font-size:11px; font-weight:800; color:#8b3020; display:flex; gap:6px; align-items:flex-start; line-height:1.4; margin-top:4px; }
-    /* ── Category priority + skip ── */
+    /* ── Category accordion ── */
     .cat-priority-badge { font-size:9px; font-weight:900; padding:2px 7px; border-radius:999px; background:var(--leaf); color:white; letter-spacing:.3px; }
-    .cat-skip-btn { font-size:10px; font-weight:900; padding:3px 9px; border-radius:999px; border:1.5px solid var(--line); background:var(--wash); color:var(--muted); cursor:pointer; transition:all .15s; }
-    .cat-skip-btn.skipped { border-color:#c85030; background:rgba(185,50,30,.07); color:#8b3020; }
-    .cat-skipped-body { padding:12px 14px; background:rgba(185,50,30,.05); border-top:1px solid rgba(185,50,30,.2); }
+    .cat-accordion { border:1.5px solid var(--line); border-radius:12px; overflow:hidden; transition:border-color .2s; }
+    .cat-accordion.is-priority { border-color:var(--leaf-2); }
+    .cat-acc-header {
+      width:100%; display:flex; align-items:center; gap:10px; padding:12px 14px;
+      background:var(--paper); cursor:pointer; text-align:left;
+      transition:background .15s;
+    }
+    .cat-accordion.is-priority .cat-acc-header { background:var(--mist); }
+    .cat-acc-header:active { background:var(--mint); }
+    .cat-acc-arrow { font-size:11px; color:var(--muted); transition:transform .25s; flex-shrink:0; }
+    .cat-accordion.open .cat-acc-arrow { transform:rotate(180deg); }
+    .cat-acc-body {
+      border-top:1px solid var(--line);
+      animation:slideDown .22s ease;
+    }
+    @keyframes slideDown {
+      from { opacity:0; transform:translateY(-6px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    .cat-not-needed { font-size:10px; color:var(--muted); font-weight:600; padding:2px 7px; border-radius:999px; background:var(--wash); border:1px solid var(--line); }
     .skip-warn-banner { display:flex; gap:10px; align-items:flex-start; font-size:12px; line-height:1.5; color:#6a2510; font-weight:650; }
     .skip-warn-icon { font-size:18px; flex-shrink:0; margin-top:1px; }
   </style>
@@ -1166,7 +1183,7 @@
       guideStep:0,
       chosen:{},
       placements:{},
-      polycatSkip:{},
+      polycatOpen:{},
       survey: {season:'rainy', pests:['caterpillar'], irrigation:true, chemFert:false},
       beds:[
         {id:'A1', length:7, width:1.2, ph:6.2, moisture:48, lat:-6.2001, lng:106.8171},
@@ -2231,21 +2248,19 @@
     };
 
     // Returns top-2 priority category keys based on survey answers
+    // Default push: intercrop (income diversification) + herbs (pest repellent)
     function getPriorityCats(sv) {
       const priority = [];
       const pests = (sv?.pests || []).filter(p => p !== 'none');
-      // Pest drives refugia + herbs first
-      if (pests.length > 0) { if (!priority.includes('refugia')) priority.push('refugia'); if (!priority.includes('herbs')) priority.push('herbs'); }
-      // Dry season → ground cover essential
-      if (sv?.season === 'dry' && !priority.includes('groundcover')) priority.push('groundcover');
-      // No irrigation → ground cover mandatory
-      if (sv?.irrigation === false && !priority.includes('groundcover')) priority.push('groundcover');
-      // Chemical fert → LCC critical
-      if (sv?.chemFert === true && !priority.includes('lcc')) priority.push('lcc');
-      // Rainy season → LCC
-      if (sv?.season === 'rainy' && !priority.includes('lcc')) priority.push('lcc');
-      // Defaults
-      if (!priority.includes('refugia')) priority.push('refugia');
+      // Herbs: always first when any pest present (aromatic repellent)
+      if (pests.length > 0) priority.push('herbs');
+      // Intercrop: core income layer — always recommended
+      if (!priority.includes('intercrop')) priority.push('intercrop');
+      // Override: no irrigation + dry → ground cover bumps up
+      if (sv?.irrigation === false && sv?.season === 'dry') { priority.length = 0; priority.push('groundcover'); priority.push('intercrop'); }
+      // Override: chemical fert heavy → LCC bumps up
+      if (sv?.chemFert === true) { if (!priority.includes('lcc')) priority.unshift('lcc'); }
+      // Fallback
       if (!priority.includes('herbs')) priority.push('herbs');
       return priority.slice(0, 2);
     }
@@ -2277,11 +2292,18 @@
       }
     }
 
-    function togglePolycatSkip(bedId, catKey) {
-      if (!st.polycatSkip) st.polycatSkip = {};
-      if (!st.polycatSkip[bedId]) st.polycatSkip[bedId] = {};
-      st.polycatSkip[bedId][catKey] = !st.polycatSkip[bedId][catKey];
+    function togglePolycatOpen(bedId, catKey) {
+      if (!st.polycatOpen) st.polycatOpen = {};
+      if (!st.polycatOpen[bedId]) st.polycatOpen[bedId] = {};
+      st.polycatOpen[bedId][catKey] = !st.polycatOpen[bedId][catKey];
       render(false);
+    }
+    function initPolycatOpen(bedId) {
+      if (!st.polycatOpen) st.polycatOpen = {};
+      if (!st.polycatOpen[bedId]) {
+        st.polycatOpen[bedId] = {};
+        getPriorityCats(st.survey).forEach(key => { st.polycatOpen[bedId][key] = true; });
+      }
     }
 
     function S_survey() {
@@ -2540,20 +2562,23 @@
     }
 
     function S_companion() {
-      st.beds.forEach(b=>initPolycatChoice(b.id));
+      st.beds.forEach(b => { initPolycatChoice(b.id); initPolycatOpen(b.id); });
+      const priorityCats = getPriorityCats(st.survey);
       return `<section>
         <div class="top">
           <div class="step">Step 5 of 5</div>
           <h1>Polyculture design</h1>
-          <p class="sub">Each bed gets its own plant mix. Auto-matched to your soil and conditions — tap any plant to swap it and see the impact.</p>
+          <p class="sub">Untuk kondisi Anda, <strong>${priorityCats.map(k=>POLYCAT_DEFS.find(d=>d.key===k)?.label).join(' + ')}</strong> paling direkomendasikan. Ketuk kategori untuk membuka dan memilih tanaman.</p>
         </div>
         <div class="section stack">
           ${st.beds.map(b => {
             const choices = st.polycatChoice[b.id];
+            const openMap = st.polycatOpen[b.id] || {};
             const status = overallBedStatus(b);
             const pc = bedMixProsCons(b.id);
+            // Legend: only open categories with a selection
+            const legendItems = POLYCAT_DEFS.filter(cat => openMap[cat.key] && choices[cat.key]);
             return `<div class="panel stack">
-              <!-- Bed header -->
               <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
                 <div>
                   <h2>${b.name||b.id}</h2>
@@ -2561,82 +2586,75 @@
                 </div>
                 <span class="chip ${status.cls}" style="font-size:11px">${status.label}</span>
               </div>
-              <!-- Pros / Cons summary (replaces optimality %) -->
+              <!-- Pros/cons -->
               <div class="proscons-card">
                 <div style="font-size:11px;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Mix assessment</div>
                 ${pc.pros.map(t=>`<div class="proscons-row"><span class="proscons-dot pro">✓</span><span>${t}</span></div>`).join('')}
                 ${pc.cons.map(t=>`<div class="proscons-row"><span class="proscons-dot con">!</span><span>${t}</span></div>`).join('')}
               </div>
-              <!-- Per-category plant pickers -->
-              ${(() => {
-                const priorityCats = getPriorityCats(st.survey);
-                const bedSkip = st.polycatSkip?.[b.id] || {};
-                return POLYCAT_DEFS.map(cat => {
+              <!-- Accordion -->
+              <div style="display:flex;flex-direction:column;gap:8px">
+                ${POLYCAT_DEFS.map(cat => {
+                  const isPriority = priorityCats.includes(cat.key);
+                  const isOpen = !!openMap[cat.key];
                   const plants = POLYCAT_PLANTS[cat.key];
                   const selId = choices[cat.key];
                   const selPlant = plants.find(p=>p.id===selId)||plants[0];
+                  const bestId = getBestPlantId(cat.key, b);
                   const selScore = polycatPlantScore(selPlant, cat.key, b);
                   const selCls = selScore>=82?'score-high':selScore>=65?'score-mid':'score-low';
-                  const bestId = getBestPlantId(cat.key, b);
-                  const isNonBest = selId !== bestId;
                   const rgb = hexToRgbStr(cat.color);
-                  const isPriority = priorityCats.includes(cat.key);
-                  const isSkipped = !!bedSkip[cat.key];
-                  return `<div style="border:1.5px solid ${isSkipped?'rgba(185,50,30,.3)':isPriority?cat.color+'88':'var(--line)'};border-radius:var(--radius);overflow:hidden;opacity:${isSkipped?.75:1}">
-                    <div class="catrow" style="padding:10px 12px;background:rgba(${rgb},${isSkipped?.04:.07});border-bottom:1px solid ${isSkipped?'rgba(185,50,30,.2)':'var(--line)'};gap:8px">
-                      <div class="catsym" style="background:rgba(${rgb},.15);border:1px solid ${cat.color}55">
-                        <span style="color:${cat.color};font-size:15px">${cat.symbol}</span>
+                  return `<div class="cat-accordion ${isOpen?'open':''} ${isPriority?'is-priority':''}">
+                    <button class="cat-acc-header" onclick="togglePolycatOpen('${b.id}','${cat.key}')">
+                      <div style="width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(${rgb},.18);border:1px solid ${cat.color}55">
+                        <span style="color:${cat.color};font-size:14px">${cat.symbol}</span>
                       </div>
-                      <div style="flex:1;min-width:0">
-                        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-                          <strong style="font-size:13px">${cat.label}</strong>
-                          ${isPriority ? `<span class="cat-priority-badge">★ Priority</span>` : ''}
+                      <div style="flex:1;min-width:0;text-align:left">
+                        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                          <strong style="font-size:13px;color:var(--ink)">${cat.label}</strong>
+                          ${isPriority
+                            ? `<span class="cat-priority-badge">★ Direkomendasikan</span>`
+                            : `<span class="cat-not-needed">Tidak diperlukan</span>`}
                         </div>
-                        <span style="display:block;font-size:10px;color:var(--muted)">${cat.desc}</span>
+                        <span style="font-size:10px;color:${isOpen&&selId?'var(--leaf-2)':'var(--muted)'};font-weight:${isOpen&&selId?700:500}">
+                          ${isOpen && selId ? `${selPlant.visual} ${selPlant.name} dipilih` : cat.desc}
+                        </span>
                       </div>
-                      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-                        ${!isSkipped ? `<span class="plant-opt-score ${selCls}">${selPlant.visual} ${selScore}%</span>` : ''}
-                        <button class="cat-skip-btn ${isSkipped?'skipped':''}" onclick="togglePolycatSkip('${b.id}','${cat.key}')">
-                          ${isSkipped ? '+ Include' : '✕ Skip'}
-                        </button>
+                      ${isOpen ? `<span class="plant-opt-score ${selCls}" style="flex-shrink:0">${selScore}%</span>` : ''}
+                      <span class="cat-acc-arrow">▼</span>
+                    </button>
+                    ${isOpen ? `<div class="cat-acc-body">
+                      ${!isPriority ? `<div style="padding:10px 14px 4px;font-size:11px;color:var(--muted);background:var(--wash);line-height:1.4">
+                        <strong style="color:var(--ink)">Opsional.</strong> ${catSkipWarning(cat.key, st.survey)}
+                      </div>` : ''}
+                      <div class="plant-opts-grid" style="padding:10px;gap:8px">
+                        ${plants.map(p => {
+                          const s = polycatPlantScore(p, cat.key, b);
+                          const sCls = s>=82?'score-high':s>=65?'score-mid':'score-low';
+                          const isSel = p.id===selId;
+                          const isBest = p.id===bestId;
+                          return `<button class="plant-opt ${isSel?'selected-opt':''}" onclick="selectPolycatPlant('${b.id}','${cat.key}','${p.id}')">
+                            <div class="plant-opt-icon">${p.visual}</div>
+                            <div class="plant-opt-name">${p.name}${isBest?` <span style="color:var(--leaf-2);font-size:9px">★</span>`:''}</div>
+                            <div class="plant-opt-sci">${p.sci}</div>
+                            <span class="plant-opt-score ${sCls}">${s}%</span>
+                            ${isSel?`<div style="font-size:9px;font-weight:900;color:var(--leaf-2);margin-top:2px">✓ Dipilih</div>`:''}
+                          </button>`;
+                        }).join('')}
                       </div>
-                    </div>
-                    ${isSkipped
-                      ? `<div class="cat-skipped-body">
-                           <div class="skip-warn-banner">
-                             <span class="skip-warn-icon">⚠️</span>
-                             <span>${catSkipWarning(cat.key, st.survey)}</span>
-                           </div>
-                         </div>`
-                      : `<div class="plant-opts-grid" style="padding:10px;gap:8px">
-                           ${plants.map(p => {
-                             const s = polycatPlantScore(p, cat.key, b);
-                             const sCls = s>=82?'score-high':s>=65?'score-mid':'score-low';
-                             const isSel = p.id===selId;
-                             const isBest = p.id===bestId;
-                             return `<button class="plant-opt ${isSel?'selected-opt':''}" onclick="selectPolycatPlant('${b.id}','${cat.key}','${p.id}')">
-                               <div class="plant-opt-icon">${p.visual}</div>
-                               <div class="plant-opt-name">${p.name}${isBest?` <span style="font-size:9px;color:var(--leaf-2);font-weight:900">★</span>`:''}</div>
-                               <div class="plant-opt-sci">${p.sci}</div>
-                               <span class="plant-opt-score ${sCls}">${s}% match</span>
-                               ${isSel?`<div style="font-size:9px;font-weight:900;color:var(--leaf-2);margin-top:3px">✓ Selected</div>`:''}
-                             </button>`;
-                           }).join('')}
-                         </div>
-                         ${isNonBest ? `<div class="risk-warn" style="margin:0 10px 10px">⚠ ${plantRiskText(selPlant, cat.key, b)}</div>` : ''}
-                         <div style="padding:8px 12px 10px;border-top:1px solid var(--line);background:var(--wash);font-size:11px;color:var(--muted);line-height:1.4">
-                           <strong style="color:var(--leaf-2)">${selPlant.name}</strong> — ${selPlant.note||selPlant.controls||cat.desc}
-                         </div>`
-                    }
+                      ${selId !== bestId ? `<div class="risk-warn" style="margin:0 10px 10px">⚠ ${plantRiskText(selPlant, cat.key, b)}</div>` : ''}
+                      <div style="padding:8px 12px 10px;border-top:1px solid var(--line);background:var(--wash);font-size:11px;color:var(--muted);line-height:1.4">
+                        <strong style="color:var(--leaf-2)">${selPlant.name}</strong> — ${selPlant.note||cat.desc}
+                      </div>
+                    </div>` : ''}
                   </div>`;
-                }).join('');
-              })()}
-              <!-- Legend -->
-              <div class="legend" style="flex-wrap:wrap;gap:5px">
-                <span class="chip"><span style="color:#c85030">●</span> ${crop().common}</span>
-                ${POLYCAT_DEFS.filter(cat=>!(st.polycatSkip?.[b.id]?.[cat.key])).map(cat=>{const p=POLYCAT_PLANTS[cat.key].find(pl=>pl.id===choices[cat.key])||POLYCAT_PLANTS[cat.key][0];return `<span class="chip"><span style="color:${cat.color}">${cat.symbol}</span> ${p.name}</span>`;}).join('')}
-                ${POLYCAT_DEFS.filter(cat=>st.polycatSkip?.[b.id]?.[cat.key]).map(cat=>`<span class="chip" style="opacity:.5;text-decoration:line-through"><span style="color:${cat.color}">${cat.symbol}</span> ${cat.label} skipped</span>`).join('')}
+                }).join('')}
               </div>
+              <!-- Legend -->
+              ${legendItems.length ? `<div class="legend" style="flex-wrap:wrap;gap:5px">
+                <span class="chip"><span style="color:#c85030">●</span> ${crop().common}</span>
+                ${legendItems.map(cat=>{const p=POLYCAT_PLANTS[cat.key].find(pl=>pl.id===choices[cat.key])||POLYCAT_PLANTS[cat.key][0];return `<span class="chip"><span style="color:${cat.color}">${cat.symbol}</span> ${p.name}</span>`;}).join('')}
+              </div>` : ''}
             </div>`;
           }).join('')}
           <button class="btn" onclick="nav('main')">View planting layout →</button>
